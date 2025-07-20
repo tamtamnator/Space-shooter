@@ -152,7 +152,8 @@
 
       const laser = new THREE.Mesh(laserGeometry, laserMaterial);
       laser.position.copy(ship.position);
-      laser.position.z -= 2;
+      laser.position.add(laser.userData.velocity);
+;
       laser.rotation.y = ship.rotation.y;
       lasers.push(laser);
       scene.add(laser);
