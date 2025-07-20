@@ -1,120 +1,257 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>First-Person Alien Shooter</title>
+  <meta charset="UTF-8" />
+  <title>Retro Space Shooter</title>
   <style>
-    html, body {
-      margin: 0;
-      overflow: hidden;
+    body, html {
+      margin: 0; padding: 0; overflow: hidden;
       background: black;
       touch-action: none;
+      user-select: none;
     }
-
-    canvas {
-      display: block;
-    }
-
-    #score {
-      position: absolute;
-      top: 10px;
-      left: 10px;
+    #info {
+      position: fixed;
+      top: 5px; left: 5px;
       color: white;
       font-family: monospace;
-      font-size: 24px;
       z-index: 10;
+      user-select: none;
     }
-
-    #target {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      background: url('https://i.imgur.com/fH2hV3V.png') no-repeat center;
-      background-size: contain;
-      pointer-events: none;
-      z-index: 11;
+    #touchControls {
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      user-select: none;
+    }
+    .btn {
+      width: 70px;
+      height: 70px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 70px;
+      font-size: 30px;
+      color: white;
+      user-select: none;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      font-weight: bold;
+      font-family: monospace;
+      transition: background 0.2s;
+    }
+    .btn:active {
+      background: rgba(255,255,255,0.5);
     }
   </style>
 </head>
 <body>
-<div id="score">Punkte: 0</div>
-<div id="target"></div>
-<canvas id="gameCanvas"></canvas>
+  <div id="info">Score: 0</div>
+  <div id="touchControls">
+    <div class="btn" id="btnLeft">&#8592;</div>
+    <div class="btn" id="btnShoot">&#9679;</div>
+    <div class="btn" id="btnRight">&#8594;</div>
+  </div>
 
-<script>
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
+  <script>
+    // --- Setup Szene, Kamera, Renderer ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 10;
+    
+    const renderer = new THREE.WebGLRenderer({antialias: false});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild( 
+// --- Detailliertes Raumschiff ---
+const ship = new THREE.Group();
 
-  const scoreEl = document.getElementById('score');
-  const targetEl = document.getElementById('target');
+// Rumpf - langer Kegel
+const bodyGeo = new THREE.ConeGeometry(0.7, 3, 8);
+const bodyMat = new THREE.MeshBasicMaterial({color: 0x00cc00});
+const body = new THREE.Mesh(bodyGeo, bodyMat);
+body.rotation.x = Math.PI / 2; // Kegel zeigt nach vorne (Z-)
+ship.add(body);
 
-  let score = 0;
-  const aliens = [];
+// Cockpit - halbe Kugel vorne drauf
+const cockpitGeo = new THREE.SphereGeometry(0.5, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+const cockpitMat = new THREE.MeshBasicMaterial({color: 0x66ff66});
+const cockpit = new THREE.Mesh(cockpitGeo, cockpitMat);
+cockpit.position.z = 1.2;
+ship.add(cockpit);
 
-  const alienImg = new Image();
-  alienImg.src = 'https://i.imgur.com/IUe3X5K.png'; // Alien-Bild
+// Flügel - zwei dünne Quader links und rechts
+const wingGeo = new THREE.BoxGeometry(0.1, 1, 2);
+const wingMat = new THREE.MeshBasicMaterial({color: 0x009900});
+const leftWing = new THREE.Mesh(wingGeo, wingMat);
+leftWing.position.set(-0.8, 0, 0.3);
+ship.add(leftWing);
 
-  // Schießt bei Touch oder Klick
-  function shoot(x, y) {
-    for (let i = aliens.length - 1; i >= 0; i--) {
-      const a = aliens[i];
-      if (x > a.x && x < a.x + a.size && y > a.y && y < a.y + a.size) {
-        aliens.splice(i, 1);
-        score++;
-        scoreEl.textContent = 'Punkte: ' + score;
-        return;
-      }
+const rightWing = new THREE.Mesh(wingGeo, wingMat);
+rightWing.position.set(0.8, 0, 0.3);
+ship.add(rightWing);
+
+// Kanonen - zwei kleine Zylinder vorne unten
+const cannonGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6);
+const cannonMat = new THREE.MeshBasicMaterial({color: 0x003300});
+const cannonLeft = new THREE.Mesh(cannonGeo, cannonMat);
+cannonLeft.rotation.x = Math.PI / 2;
+cannonLeft.position.set(-0.3, -0.3, 1.6);
+ship.add(cannonLeft);
+
+const cannonRight = cannonLeft.clone();
+cannonRight.position.set(0.3, -0.3, 1.6);
+ship.add(cannonRight);
+
+ship.position.z = 0;
+scene.add(ship);
+
+    // --- Aliens ---
+    const alienGeometry = new THREE.SphereGeometry(0.7, 6, 6);
+    const alienMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+    let aliens = [];
+
+    // --- Laser ---
+    const laserGeometry = new THREE.BoxGeometry(0.3, 0.3, 1);
+    const laserMaterial = new THREE.MeshBasicMaterial({color: 0x3399ff});
+    let lasers = [];
+
+    // --- Steuerung ---
+    let rotationY = 0;
+    const rotationSpeed = 0.05;
+    let shootCooldown = 0;
+    let score = 0;
+
+    // Info anzeigen
+    const info = document.getElementById('info');
+    function updateScore() {
+      info.textContent = 'Score: ' + score;
     }
-  }
 
-  canvas.addEventListener('touchstart', e => {
-    const touch = e.touches[0];
-    moveTarget(touch.clientX, touch.clientY);
-    shoot(touch.clientX, touch.clientY);
-  });
+    // Aliens spawnen
+    function spawnAlien() {
+      const alien = new THREE.Mesh(alienGeometry, alienMaterial);
+      alien.position.x = (Math.random() - 0.5) * 8;
+      alien.position.y = (Math.random() - 0.5) * 5;
+      alien.position.z = -30;
+      aliens.push(alien);
+      scene.add(alien);
+    }
 
-  canvas.addEventListener('touchmove', e => {
-    const touch = e.touches[0];
-    moveTarget(touch.clientX, touch.clientY);
-  });
+    setInterval(spawnAlien, 1500);
 
-  canvas.addEventListener('mousedown', e => shoot(e.clientX, e.clientY));
-  canvas.addEventListener('mousemove', e => moveTarget(e.clientX, e.clientY));
+    // Schießen Funktion
+    function shoot() {
+      if(shootCooldown > 0) return;
+      shootCooldown = 20; // Cooldown Frames
 
-  function moveTarget(x, y) {
-    targetEl.style.left = x - 20 + 'px';
-    targetEl.style.top = y - 20 + 'px';
-  }
+      const laser = new THREE.Mesh(laserGeometry, laserMaterial);
+      laser.position.copy(ship.position);
+      laser.position.z -= 2;
+      laser.rotation.y = ship.rotation.y;
+      lasers.push(laser);
+      scene.add(laser);
+    }
 
-  function spawnAlien() {
-    const size = 60 + Math.random() * 40;
-    aliens.push({
-      x: Math.random() * (canvas.width - size),
-      y: -size,
-      size: size,
-      speed: 2 + Math.random() * 3
+    // Tastatur Steuerung (für Desktop)
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if(e.key === ' ' || e.key === 'Spacebar') shoot();
     });
-  }
+    window.addEventListener('keyup', e => {
+      keys[e.key.toLowerCase()] = false;
+    });
 
-  function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = aliens.length - 1; i >= 0; i--) {
-      const a = aliens[i];
-      a.y += a.speed;
-      ctx.drawImage(alienImg, a.x, a.y, a.size, a.size);
-      if (a.y > canvas.height) aliens.splice(i, 1);
+    // Touch Steuerung Buttons
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnShoot = document.getElementById('btnShoot');
+    let touchLeft = false;
+    let touchRight = false;
+    let touchShoot = false;
+
+    btnLeft.addEventListener('touchstart', e => { e.preventDefault(); touchLeft = true; });
+    btnLeft.addEventListener('touchend', e => { e.preventDefault(); touchLeft = false; });
+
+    btnRight.addEventListener('touchstart', e => { e.preventDefault(); touchRight = true; });
+    btnRight.addEventListener('touchend', e => { e.preventDefault(); touchRight = false; });
+
+    btnShoot.addEventListener('touchstart', e => { e.preventDefault(); touchShoot = true; shoot(); });
+    btnShoot.addEventListener('touchend', e => { e.preventDefault(); touchShoot = false; });
+
+    // --- Spiel Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Steuerung anpassen
+      if(keys['a'] || touchLeft) rotationY += rotationSpeed;
+      if(keys['d'] || touchRight) rotationY -= rotationSpeed;
+
+      ship.rotation.y = rotationY;
+
+      if(touchShoot) shoot();
+
+      if(shootCooldown > 0) shootCooldown--;
+
+      // Laser bewegen
+      for(let i = lasers.length -1; i >= 0; i--) {
+        let laser = lasers[i];
+        // Richtung Laser bewegen (vorwärts, also negativ z-Achse relativ zum Schiff)
+        laser.position.z -= 0.5;
+        // Entfernen wenn zu weit weg
+        if(laser.position.z < -50) {
+          scene.remove(laser);
+          lasers.splice(i,1);
+        }
+      }
+
+      // Aliens bewegen
+      for(let i = aliens.length -1; i >= 0; i--) {
+        let alien = aliens[i];
+        // Aliens bewegen sich auf z=0 zu (Spielerposition)
+        alien.position.z += 0.1;
+
+        // Check Kollision Laser-Alien
+        let hit = false;
+        for(let j = lasers.length -1; j >=0; j--) {
+          let laser = lasers[j];
+          if(alien.position.distanceTo(laser.position) < 1) {
+            // Alien getroffen
+            hit = true;
+            scene.remove(alien);
+            aliens.splice(i,1);
+            scene.remove(laser);
+            lasers.splice(j,1);
+            score++;
+            updateScore();
+            break;
+          }
+        }
+
+        // Alien trifft Spieler
+        if(alien.position.z >= 0 && !hit) {
+          // Hier könnte man Leben abziehen oder Spiel beenden
+          alert('Game Over! Dein Score: ' + score);
+          window.location.reload();
+          return;
+        }
+      }
+
+      renderer.render(scene, camera);
     }
-  }
+    animate();
 
-  function gameLoop() {
-    update();
-    requestAnimationFrame(gameLoop);
-  }
-
-  setInterval(spawnAlien, 1000);
-  alienImg.onload = () => gameLoop();
-</script>
+    // Responsive
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
 </body>
 </html>
