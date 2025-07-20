@@ -62,8 +62,9 @@
     // --- Setup Szene, Kamera, Renderer ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
-    camera.position.z = 10;
-    
+    camera.position.set(0, 2, 15);
+    camera.lookAt(0, 0, 0);
+
     const renderer = new THREE.WebGLRenderer({antialias: false});
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -108,7 +109,7 @@
     cannonRight.position.set(0.3, -0.3, 1.6);
     ship.add(cannonRight);
 
-    ship.position.z = 0;
+    ship.position.set(0, 0, 0);
     scene.add(ship);
 
     // --- Aliens ---
@@ -127,7 +128,6 @@
     let shootCooldown = 0;
     let score = 0;
 
-    // Info anzeigen
     const info = document.getElementById('info');
     function updateScore() {
       info.textContent = 'Score: ' + score;
@@ -137,8 +137,8 @@
     function spawnAlien() {
       const alien = new THREE.Mesh(alienGeometry, alienMaterial);
       alien.position.x = (Math.random() - 0.5) * 8;
-      alien.position.y = (Math.random() - 0.5) * 5;
-      alien.position.z = -30;
+      alien.position.y = (Math.random() - 0.5) * 3;
+      alien.position.z = -20;
       aliens.push(alien);
       scene.add(alien);
     }
@@ -202,9 +202,7 @@
       // Laser bewegen
       for(let i = lasers.length -1; i >= 0; i--) {
         let laser = lasers[i];
-        // Richtung Laser bewegen (vorwärts, also negativ z-Achse relativ zum Schiff)
         laser.position.z -= 0.5;
-        // Entfernen wenn zu weit weg
         if(laser.position.z < -50) {
           scene.remove(laser);
           lasers.splice(i,1);
@@ -214,15 +212,12 @@
       // Aliens bewegen
       for(let i = aliens.length -1; i >= 0; i--) {
         let alien = aliens[i];
-        // Aliens bewegen sich auf z=0 zu (Spielerposition)
         alien.position.z += 0.1;
 
-        // Check Kollision Laser-Alien
         let hit = false;
         for(let j = lasers.length -1; j >=0; j--) {
           let laser = lasers[j];
           if(alien.position.distanceTo(laser.position) < 1) {
-            // Alien getroffen
             hit = true;
             scene.remove(alien);
             aliens.splice(i,1);
@@ -234,9 +229,7 @@
           }
         }
 
-        // Alien trifft Spieler
         if(alien.position.z >= 0 && !hit) {
-          // Hier könnte man Leben abziehen oder Spiel beenden
           alert('Game Over! Dein Score: ' + score);
           window.location.reload();
           return;
