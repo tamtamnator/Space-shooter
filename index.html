@@ -2,44 +2,108 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Shooter-Spiel</title>
+  <title>Shooter Handyspiel mit Raumschiff</title>
   <style>
-    body {
+    html, body {
       margin: 0;
-      overflow: hidden;
+      padding: 0;
       background-color: black;
-      color: white;
-      font-family: Arial, sans-serif;
+      overflow: hidden;
     }
+
     canvas {
       display: block;
       margin: 0 auto;
-      background: #111;
+      background-color: #111;
       border: 2px solid white;
     }
+
     #score {
       position: absolute;
       top: 10px;
       left: 10px;
+      color: white;
+      font-family: sans-serif;
       font-size: 24px;
+      z-index: 10;
+    }
+
+    .controls {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      z-index: 10;
+    }
+
+    .btn {
+      width: 60px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid white;
+      color: white;
+      font-size: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .btn:active {
+      background: white;
+      color: black;
     }
   </style>
 </head>
 <body>
   <div id="score">Punkte: 0</div>
-  <canvas id="gameCanvas" width="500" height="700"></canvas>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+  <div class="controls">
+    <div class="btn" id="left">◀️</div>
+    <div class="btn" id="shoot">🔫</div>
+    <div class="btn" id="right">▶️</div>
+  </div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    let spieler = { x: 225, y: 650, width: 50, height: 20, speed: 5 };
+    const spaceshipImg = new Image();
+    spaceshipImg.src = "https://i.imgur.com/6X3H7Pj.png";
+
+    const spieler = {
+      x: 175,
+      y: 520,
+      width: 50,
+      height: 50,
+      speed: 5
+    };
+
     let bullets = [];
     let gegner = [];
     let punkte = 0;
-    let keys = {};
+    let movingLeft = false;
+    let movingRight = false;
 
-    // Gegner erzeugen
+    // Touch-Steuerung
+    document.getElementById("left").ontouchstart = () => movingLeft = true;
+    document.getElementById("left").ontouchend = () => movingLeft = false;
+    document.getElementById("right").ontouchstart = () => movingRight = true;
+    document.getElementById("right").ontouchend = () => movingRight = false;
+    document.getElementById("shoot").ontouchstart = () => {
+      bullets.push({
+        x: spieler.x + spieler.width / 2 - 2.5,
+        y: spieler.y,
+        width: 5,
+        height: 10,
+        speed: 7
+      });
+    };
+
     function erstelleGegner() {
       let x = Math.random() * (canvas.width - 40);
       gegner.push({ x: x, y: -40, width: 40, height: 40, speed: 2 + Math.random() * 2 });
@@ -47,33 +111,17 @@
 
     setInterval(erstelleGegner, 1000);
 
-    // Steuerung
-    document.addEventListener("keydown", e => keys[e.key] = true);
-    document.addEventListener("keyup", e => keys[e.key] = false);
-
     function update() {
-      // Bewegung
-      if (keys["ArrowLeft"] || keys["a"]) spieler.x -= spieler.speed;
-      if (keys["ArrowRight"] || keys["d"]) spieler.x += spieler.speed;
+      if (movingLeft) spieler.x -= spieler.speed;
+      if (movingRight) spieler.x += spieler.speed;
 
-      // Begrenzung
       spieler.x = Math.max(0, Math.min(canvas.width - spieler.width, spieler.x));
 
-      // Schießen
-      if (keys[" "] || keys["Space"]) {
-        bullets.push({ x: spieler.x + 20, y: spieler.y, width: 5, height: 10, speed: 7 });
-        keys[" "] = false; // verhindert Dauerfeuer
-        keys["Space"] = false;
-      }
-
-      // Kugeln bewegen
       bullets.forEach(b => b.y -= b.speed);
       bullets = bullets.filter(b => b.y > 0);
 
-      // Gegner bewegen
       gegner.forEach(g => g.y += g.speed);
 
-      // Treffer prüfen
       bullets.forEach((b, bi) => {
         gegner.forEach((g, gi) => {
           if (
@@ -82,7 +130,6 @@
             b.y < g.y + g.height &&
             b.y + b.height > g.y
           ) {
-            // Treffer
             bullets.splice(bi, 1);
             gegner.splice(gi, 1);
             punkte++;
@@ -91,16 +138,14 @@
         });
       });
 
-      // Gegner, die durchkommen, entfernen
       gegner = gegner.filter(g => g.y < canvas.height);
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Spieler
-      ctx.fillStyle = "lime";
-      ctx.fillRect(spieler.x, spieler.y, spieler.width, spieler.height);
+      // Spieler zeichnen (Raumschiff)
+      ctx.drawImage(spaceshipImg, spieler.x, spieler.y, spieler.width, spieler.height);
 
       // Kugeln
       ctx.fillStyle = "yellow";
@@ -117,7 +162,7 @@
       requestAnimationFrame(gameLoop);
     }
 
-    gameLoop();
+    spaceshipImg.onload = gameLoop;
   </script>
 </body>
 </html>
